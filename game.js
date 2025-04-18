@@ -10,6 +10,8 @@ window.addEventListener("resize", resizeCanvas);
 
 // Game variables
 let frameCount = 0;
+let currentLevel = 0;
+let levelComplete = false;
 let paused = false;
 let gameOver = false;
 let backgroundX = 0;
@@ -24,12 +26,28 @@ const enemies = [];
 const keys = {};
 
 // Levels
-const level1 = [
-  { time: 60, type: "basic", x: 1400, y: 200 },
-  { time: 120, type: "basic", x: 1400, y: 400 },
-  { time: 180, type: "fast", x: 1400, y: 300 },
-  { time: 300, type: "basic", x: 1400, y: 150 },
-  { time: 500, type: "boss", x: 1400, y: 250 },
+const levels = [
+  {
+    background: "image/bg_earth.jpg",
+    wave: [
+      { time: 60, type: "basic", x: 1400, y: 200 },
+      { time: 120, type: "basic", x: 1400, y: 400 },
+      { time: 180, type: "fast", x: 1400, y: 300 },
+      { time: 300, type: "basic", x: 1400, y: 150 },
+      { time: 400, type: "fast", x: 1400, y: 300 },
+      { time: 550, type: "boss", x: 1400, y: 250 },
+    ],
+  },
+  {
+    background: "image/bg_space.jpg",
+    wave: [
+      { time: 60, type: "fast", x: 1400, y: 100 },
+      { time: 120, type: "basic", x: 1400, y: 350 },
+      { time: 200, type: "basic", x: 1400, y: 200 },
+      { time: 350, type: "fast", x: 1400, y: 400 },
+      { time: 600, type: "boss", x: 1400, y: 250 },
+    ],
+  },
 ];
 
 // Player Configuration
@@ -53,6 +71,7 @@ const enemyTypes = {
     speed: 5,
     hp: 3,
     image: "image/enemy_basic.png",
+    status: "regular",
   },
   fast: {
     width: 152,
@@ -60,6 +79,7 @@ const enemyTypes = {
     speed: 8,
     hp: 1,
     image: "image/enemy_fast.png",
+    status: "regular",
   },
   boss: {
     width: 201,
@@ -67,6 +87,7 @@ const enemyTypes = {
     speed: 1,
     hp: 20,
     image: "image/enemy_boss.png",
+    status: "boss",
   },
 };
 
@@ -77,7 +98,7 @@ const bulletImage = new Image();
 bulletImage.src = "image/bullet.png";
 
 const backgroundImage = new Image();
-backgroundImage.src = "image/bg_earth.jpg";
+backgroundImage.src = levels[currentLevel].background;
 
 const explosionImage = new Image();
 explosionImage.src = "image/explosion.png";
@@ -104,6 +125,18 @@ window.addEventListener("keyup", (e) => {
     player.isShooting = false;
   }
 });
+
+//Change level
+function loadLevel(index) {
+  const level = levels[index];
+  backgroundImage.src = level.background;
+  nextSpawnIndex = 0;
+  frameCount = 0;
+  enemies.length = 0;
+  player.bullets.length = 0;
+  explosions.length = 0;
+  levelComplete = false;
+}
 
 // Bullets
 function shootBullet() {
@@ -191,6 +224,7 @@ function spawnEnemiesFromLevel(level, currentFrame) {
         speed: type.speed,
         hp: type.hp,
         image: type.img,
+        status: type.status,
       });
 
       nextSpawnIndex++;
@@ -214,7 +248,10 @@ function update() {
   backgroundX -= scrollSpeed;
 
   frameCount++;
-  spawnEnemiesFromLevel(level1, frameCount);
+
+  if (levelComplete) return;
+
+  spawnEnemiesFromLevel(levels[currentLevel].wave, frameCount);
 
   // When the bg's position moves completely outta left edge, move it back to its starting place
   if (backgroundX <= -VIRTUAL_WIDTH) {
@@ -282,16 +319,29 @@ function update() {
       if (isColliding(bullet, enemy)) {
         enemy.hp = (enemy.hp || enemyTypes.basic.hp) - 1; // fallback if missing hp
         player.bullets.splice(i, 1); // Remove bullet
-        if (enemy.hp <= 0) {
-          explosions.push({
-            x: enemy.x + enemy.width / 2 - 64,
-            y: enemy.y + enemy.height / 2 - 64,
-            width: 150,
-            height: 150,
-            timer: 60,
-          });
 
-          enemies.splice(j, 1); // Remove enemy
+        if (enemy.hp <= 0) {
+          if (enemy.status === "boss") {
+            levelComplete = true;
+            setTimeout(() => {
+              currentLevel++;
+              if (currentLevel < levels.length) {
+                loadLevel(currentLevel);
+              } else {
+                gameOver = true; // Or: show "YOU WIN" screen
+              }
+            }, 3000); // delay before next level
+          } else {
+            explosions.push({
+              x: enemy.x + enemy.width / 2 - 64,
+              y: enemy.y + enemy.height / 2 - 64,
+              width: 150,
+              height: 150,
+              timer: 60,
+            });
+
+            enemies.splice(j, 1); // Remove enemy
+          }
         }
         break; // Exit inner loop once bullet hits
       }
@@ -324,6 +374,16 @@ function draw() {
       explosion.height
     );
   }
+  if (levelComplete) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#00ffcc";
+    ctx.font = "48px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Level Complete!", canvas.width / 2, canvas.height / 2);
+  }
+
   if (gameOver) {
     ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -351,6 +411,7 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
+loadLevel(currentLevel);
 gameLoop();
 
 function resizeCanvas() {
