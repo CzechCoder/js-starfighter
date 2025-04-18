@@ -14,6 +14,7 @@ let currentLevel = 0;
 let levelComplete = false;
 let paused = false;
 let gameOver = false;
+let youWin = false;
 let backgroundX = 0;
 let nextSpawnIndex = 0;
 let lastTime = performance.now();
@@ -115,7 +116,7 @@ window.addEventListener("keydown", (e) => {
 
   if (e.key === KEY_BINDINGS.shoot) player.isShooting = true;
   if (KEY_BINDINGS.pause.includes(e.key)) paused = !paused;
-  if (gameOver && e.key === KEY_BINDINGS.retry) location.reload();
+  if (gameOver || (youWin && e.key === KEY_BINDINGS.retry)) location.reload();
 });
 
 window.addEventListener("keyup", (e) => {
@@ -245,11 +246,11 @@ function isColliding(a, b) {
 
 // Game Loop mechanics
 function update() {
-  backgroundX -= scrollSpeed;
+  if (levelComplete) return;
 
   frameCount++;
 
-  if (levelComplete) return;
+  backgroundX -= scrollSpeed;
 
   spawnEnemiesFromLevel(levels[currentLevel].wave, frameCount);
 
@@ -322,15 +323,15 @@ function update() {
 
         if (enemy.hp <= 0) {
           if (enemy.status === "boss") {
-            levelComplete = true;
-            setTimeout(() => {
-              currentLevel++;
-              if (currentLevel < levels.length) {
+            if (currentLevel < levels.length - 1) {
+              levelComplete = true;
+              setTimeout(() => {
+                currentLevel++;
                 loadLevel(currentLevel);
-              } else {
-                gameOver = true; // Or: show "YOU WIN" screen
-              }
-            }, 3000); // delay before next level
+              }, 3000); // delay before next level
+            } else {
+              youWin = true; // Or: show "YOU WIN" screen
+            }
           } else {
             explosions.push({
               x: enemy.x + enemy.width / 2 - 64,
@@ -374,6 +375,23 @@ function draw() {
       explosion.height
     );
   }
+
+  if (youWin) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#00ff00";
+    ctx.font = "64px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("YOU WIN!", canvas.width / 2, canvas.height / 2 - 40);
+    ctx.font = "32px sans-serif";
+    ctx.fillText(
+      "Press 'R' to play again",
+      canvas.width / 2,
+      canvas.height / 2 + 30
+    );
+  }
+
   if (levelComplete) {
     ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -400,7 +418,7 @@ function draw() {
 }
 
 function gameLoop() {
-  if (!paused && !gameOver) {
+  if (!paused && !gameOver && !youWin) {
     update();
   }
 
