@@ -11,9 +11,12 @@ window.addEventListener("resize", resizeCanvas);
 // Game variables
 let frameCount = 0;
 let paused = false;
-let backgroundX = 0;
-const scrollSpeed = 2; // How fast the bg moves
 let gameOver = false;
+let backgroundX = 0;
+let nextSpawnIndex = 0;
+let lastTime = performance.now();
+let fps = 0;
+const scrollSpeed = 2; // How fast the bg moves
 
 // Initial objs and arrays
 const explosions = [];
@@ -35,7 +38,7 @@ const player = {
   y: VIRTUAL_HEIGHT / 2 - 32,
   width: 151,
   height: 77,
-  speed: 4,
+  speed: 6,
   image: new Image(),
   bullets: [],
   isShooting: false,
@@ -47,14 +50,14 @@ const enemyTypes = {
   basic: {
     width: 149,
     height: 59,
-    speed: 4,
+    speed: 5,
     hp: 3,
     image: "image/enemy_basic.png",
   },
   fast: {
     width: 152,
     height: 51,
-    speed: 7,
+    speed: 8,
     hp: 1,
     image: "image/enemy_fast.png",
   },
@@ -80,20 +83,18 @@ const explosionImage = new Image();
 explosionImage.src = "image/explosion.png";
 
 // Handling all my inputs
+const KEY_BINDINGS = {
+  shoot: " ",
+  pause: ["Escape", "p"],
+  retry: "r",
+};
+
 window.addEventListener("keydown", (e) => {
   keys[e.key] = true;
 
-  if (e.key === " ") {
-    player.isShooting = true;
-  }
-
-  if (e.key === "Escape" || e.key === "p") {
-    paused = !paused;
-  }
-
-  if (gameOver && e.key === "r") {
-    location.reload();
-  }
+  if (e.key === KEY_BINDINGS.shoot) player.isShooting = true;
+  if (KEY_BINDINGS.pause.includes(e.key)) paused = !paused;
+  if (gameOver && e.key === KEY_BINDINGS.retry) location.reload();
 });
 
 window.addEventListener("keyup", (e) => {
@@ -112,7 +113,7 @@ function shootBullet() {
       y: player.y + player.height / 2 - 4,
       width: 46,
       height: 16,
-      speed: 10,
+      speed: 12,
     });
     player.shootCooldown = 10; // Adjust for more rapid fire
   }
@@ -164,11 +165,24 @@ Object.keys(enemyTypes).forEach((type) => {
 });
 
 function spawnEnemiesFromLevel(level, currentFrame) {
-  for (let i = 0; i < level.length; i++) {
-    const spawn = level[i];
-    if (spawn.time === currentFrame) {
-      const type = enemyTypes[spawn.type];
+  while (
+    nextSpawnIndex < level.length &&
+    level[nextSpawnIndex].time <= currentFrame
+  ) {
+    const spawn = level[nextSpawnIndex];
+    const type = enemyTypes[spawn.type];
 
+    // Check for overlap
+    const newEnemyBox = {
+      x: spawn.x,
+      y: spawn.y,
+      width: type.width,
+      height: type.height,
+    };
+
+    const isOverlapping = enemies.some((e) => isColliding(newEnemyBox, e));
+
+    if (!isOverlapping) {
       enemies.push({
         x: spawn.x,
         y: spawn.y,
@@ -178,6 +192,10 @@ function spawnEnemiesFromLevel(level, currentFrame) {
         hp: type.hp,
         image: type.img,
       });
+
+      nextSpawnIndex++;
+    } else {
+      break; // Don't increment nextSpawnIndex yet
     }
   }
 }
@@ -191,7 +209,7 @@ function isColliding(a, b) {
   );
 }
 
-// Game Loop - also where all the game mechanics happen
+// Game Loop mechanics
 function update() {
   backgroundX -= scrollSpeed;
 
@@ -328,9 +346,7 @@ function gameLoop() {
 
   draw();
 
-  if (paused) {
-    drawPauseMenu();
-  }
+  if (paused) drawPauseMenu();
 
   requestAnimationFrame(gameLoop);
 }
